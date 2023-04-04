@@ -1,51 +1,93 @@
-import { action, atom } from '@reatom/framework'
-import { useAction, useAtom } from '@reatom/npm-react'
+import React from 'react'
+import { useAction, useAtom, useCtx, useUpdate } from '@reatom/npm-react'
+import { type Ctx, random } from '@reatom/framework'
+
+import { reatomTree, type Tree } from './model'
 import './App.css'
 
-// base mutable atom
-const inputAtom = atom('', 'inputAtom')
+let TreeComponent = ({ tree }: { tree: Tree }) => {
+  const [name, setName] = useAtom('')
+  const [checked] = useAtom(tree.checkedAtom)
+  const toggle = useAction(tree.toggle)
+  const del = useAction(tree.del)
+  const add = useAction((ctx, event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    tree.add(ctx, `child_${name}_`)
+    setName('')
+  })
 
-// computed readonly atom
-const greetingAtom = atom((ctx) => {
-  const input = ctx.spy(inputAtom)
-  return input === '' ? `Hello, ${input}!` : ''
-}, 'greetingAtom')
-
-// a logic container
-const onSubmit = action((ctx) => {
-  const greeting = ctx.get(greetingAtom)
-
-  // side-effects should be scheduled
-  // you could do it anywhere with `ctx`
-  ctx
-    .schedule(() => {
-      alert(greeting)
-    })
-    .catch(() => {})
-}, 'onSubmit')
-
-export default function App() {
-  const [input, setInput] = useAtom(inputAtom)
-  const [greeting] = useAtom(greetingAtom)
-  const handleSubmit = useAction(
-    (ctx, event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      onSubmit(ctx)
+  // https://github.com/facebook/react/issues/1798#issuecomment-333414857
+  const checkboxRef = React.useRef<HTMLInputElement>(null)
+  useUpdate(
+    (ctx, indeterminate) => {
+      if (checkboxRef.current === null) return
+      checkboxRef.current.indeterminate = indeterminate
     },
+    // `useUpdate` magic is that
+    // the indeterminateAtom update will not trigger the component render
+    [tree.indeterminateAtom],
   )
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h1>Reatom</h1>
-      <p>
+    <div>
+      <input
+        type="checkbox"
+        checked={checked}
+        ref={checkboxRef}
+        onChange={(e) => toggle(e.currentTarget.checked)}
+      />
+      <form onSubmit={add} style={{ display: 'inline' }}>
         <input
-          value={input}
-          onChange={(e) => setInput(e.currentTarget.value)}
-          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          placeholder="Name"
         />
-        <button type="submit">Submit</button>
-      </p>
-      <p>{greeting}</p>
-    </form>
+        <button disabled={name.length < 1} type="submit">
+          +
+        </button>
+      </form>
+      {tree.del !== undefined && <button onClick={del}>-</button>} ({tree.id})
+      <TreeList tree={tree} />
+    </div>
   )
+}
+TreeComponent = React.memo(TreeComponent) as typeof TreeComponent
+
+let TreeList = ({ tree }: { tree: Tree }) => {
+  const [children] = useAtom(tree.childrenAtom)
+  return (
+    <ul>
+      {children.map((child) => (
+        <li key={child.id}>
+          <TreeComponent tree={child} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+TreeList = React.memo(TreeList) as typeof TreeList
+
+export default function App() {
+  const ctx = useCtx()
+  const tree = React.useMemo(() => ctx.get(() => createRandomTree(ctx)), [ctx])
+  return <TreeComponent tree={tree} />
+}
+
+function createRandomTree(
+  ctx: Ctx,
+  parent = reatomTree('root', undefined),
+  depth = random(2, 4),
+): Tree {
+  if (depth-- > 0) {
+    const breadth = random(1, 3)
+    let i = 0
+    while (i++ < breadth) {
+      createRandomTree(
+        ctx,
+        parent.add(ctx, `child_${depth}_${breadth}_`),
+        depth,
+      )
+    }
+  }
+  return parent
 }
