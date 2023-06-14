@@ -1,93 +1,59 @@
 import React from 'react'
-import { useAction, useAtom, useCtx, useUpdate } from '@reatom/npm-react'
-import { type Ctx, random } from '@reatom/framework'
+// import { ReactComponent as Logo } from "./logo.svg";
+// import "./App.css";
+import { UsersList } from './UsersList'
 
-import { reatomTree, type Tree } from './model'
-import './App.css'
-
-let TreeComponent = ({ tree }: { tree: Tree }) => {
-  const [name, setName] = useAtom('')
-  const [checked] = useAtom(tree.checkedAtom)
-  const toggle = useAction(tree.toggle)
-  const del = useAction(tree.del)
-  const add = useAction((ctx, event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    tree.add(ctx, `child_${name}_`)
-    setName('')
-  })
-
-  // https://github.com/facebook/react/issues/1798#issuecomment-333414857
-  const checkboxRef = React.useRef<HTMLInputElement>(null)
-  useUpdate(
-    (ctx, indeterminate) => {
-      if (checkboxRef.current === null) return
-      checkboxRef.current.indeterminate = indeterminate
-    },
-    // `useUpdate` magic is that
-    // the indeterminateAtom update will not trigger the component render
-    [tree.indeterminateAtom],
-  )
-
+function App() {
   return (
-    <div>
-      <input
-        type="checkbox"
-        checked={checked}
-        ref={checkboxRef}
-        onChange={(e) => toggle(e.currentTarget.checked)}
-      />
-      <form onSubmit={add} style={{ display: 'inline' }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Name"
-        />
-        <button disabled={name.length < 1} type="submit">
-          +
-        </button>
-      </form>
-      {tree.del !== undefined && <button onClick={del}>-</button>} ({tree.id})
-      <TreeList tree={tree} />
+    <div className="App">
+      <header className="App-header">
+        {/* <Logo className="App-logo" /> */}
+        <UsersList />
+        <p>
+          Edit <code>src/App.js</code> and save to reload.
+        </p>
+        <span>
+          <span>Learn </span>
+          <a
+            className="App-link"
+            href="https://reactjs.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            React
+          </a>
+          <span>, </span>
+          <a
+            className="App-link"
+            href="https://redux.js.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Redux
+          </a>
+          <span>, </span>
+          <a
+            className="App-link"
+            href="https://redux-toolkit.js.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Redux Toolkit
+          </a>
+          ,<span> and </span>
+          <a
+            className="App-link"
+            href="https://react-redux.js.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            React Redux
+          </a>
+        </span>
+      </header>
+      <hr />
     </div>
   )
 }
-TreeComponent = React.memo(TreeComponent) as typeof TreeComponent
 
-let TreeList = ({ tree }: { tree: Tree }) => {
-  const [children] = useAtom(tree.childrenAtom)
-  return (
-    <ul>
-      {children.map((child) => (
-        <li key={child.id}>
-          <TreeComponent tree={child} />
-        </li>
-      ))}
-    </ul>
-  )
-}
-TreeList = React.memo(TreeList) as typeof TreeList
-
-export default function App() {
-  const ctx = useCtx()
-  const tree = React.useMemo(() => ctx.get(() => createRandomTree(ctx)), [ctx])
-  return <TreeComponent tree={tree} />
-}
-
-function createRandomTree(
-  ctx: Ctx,
-  parent = reatomTree('root', undefined),
-  depth = random(2, 4),
-): Tree {
-  if (depth-- > 0) {
-    const breadth = random(1, 3)
-    let i = 0
-    while (i++ < breadth) {
-      createRandomTree(
-        ctx,
-        parent.add(ctx, `child_${depth}_${breadth}_`),
-        depth,
-      )
-    }
-  }
-  return parent
-}
+export default App

@@ -1,95 +1,28 @@
-import {
-  type Atom,
-  action,
-  atom,
-  type Action,
-  type AtomMut,
-  random,
-} from '@reatom/framework'
+import { action, atom } from '@reatom/core'
+import userAPI from './userAPI'
 
-export interface Tree {
-  id: string
-  childrenAtom: AtomMut<Array<Tree>>
-  checkedAtom: Atom<boolean>
-  indeterminateAtom: Atom<boolean>
-  toggle: Action<[boolean?]>
-  add: Action<[string], Tree>
-  del: Action<[]>
-}
+export const loadingAtom = atom(false, 'loadingAtom')
+export const usersAtom = atom([], 'usersAtom')
+export const totalUsersAtom = atom(
+  (ctx) => ctx.spy(usersAtom).length,
+  'totalUsersAtom',
+)
 
-export const reatomTree = (id: string, parent?: Tree): Tree => {
-  id += random(1000, 9999)
-  const name = `tree#${id}`
+export const fetchUsers = action(async (ctx) => {
+  loadingAtom(ctx, true)
 
-  const childrenAtom: Tree['childrenAtom'] = atom(
-    new Array<Tree>(),
-    `${name}.childrenAtom`,
+  const response = await ctx.schedule(() => userAPI.fetchAll())
+
+  loadingAtom(ctx, false)
+  usersAtom(ctx, response.data)
+}, 'fetchUsers')
+
+export const removeUser = action((ctx, id) => {
+  usersAtom(ctx, (list) => list.filter((user) => user.id !== id))
+}, 'removeUser')
+
+export const changeUser = action((ctx, id, changes) => {
+  usersAtom(ctx, (list) =>
+    list.map((user) => (user.id === id ? { ...user, ...changes } : user)),
   )
-
-  const indeterminateChildrenAtom = atom(
-    (ctx) =>
-      ctx.spy(childrenAtom).some((child) => ctx.spy(child.indeterminateAtom)),
-    `${name}._indeterminateChildrenAtom`,
-  )
-
-  const checkedCountAtom = atom(
-    (ctx) =>
-      ctx
-        .spy(childrenAtom)
-        .reduce(
-          (acc, child) => (ctx.spy(child.checkedAtom) ? acc + 1 : acc),
-          0,
-        ),
-    `${name}._checkedCountAtom`,
-  )
-
-  const indeterminateAtom: Tree['indeterminateAtom'] = atom((ctx) => {
-    const indeterminateChildren = ctx.spy(indeterminateChildrenAtom)
-    const count = ctx.spy(checkedCountAtom)
-    const { length } = ctx.spy(childrenAtom)
-
-    return indeterminateChildren || (count > 0 && count < length)
-  }, `${name}.indeterminateAtom`)
-
-  const toggle: Tree['toggle'] = action((ctx, state?: boolean) => {
-    state ??= !ctx.get(indeterminateAtom)
-    ctx.get(childrenAtom).forEach((child) => child.toggle(ctx, state))
-
-    return state
-  }, `${name}.toggle`)
-
-  const checkedAtom: Tree['checkedAtom'] = atom((ctx) => {
-    const indeterminate = ctx.spy(indeterminateAtom)
-    const checkedCount = ctx.spy(checkedCountAtom)
-    const { length } = ctx.spy(childrenAtom)
-    let state = !indeterminate && (length === 0 || checkedCount > 0)
-
-    ctx.spy(toggle, ({ payload }) => {
-      state = payload
-    })
-
-    return state
-  }, `${name}.checkedAtom`)
-
-  const add: Tree['add'] = action((ctx, name: string) => {
-    const childTree = reatomTree(name, tree)
-    childrenAtom(ctx, (state) => [...state, childTree])
-    return childTree
-  }, `${name}.add`)
-
-  const del: Tree['del'] = action((ctx) => {
-    parent?.childrenAtom(ctx, (state) => state.filter((el) => el !== tree))
-  }, `${name}.del`)
-
-  const tree: Tree = {
-    id,
-    childrenAtom,
-    checkedAtom,
-    indeterminateAtom,
-    toggle,
-    add,
-    del,
-  }
-
-  return tree
-}
+}, 'changeUser')
