@@ -1,6 +1,3 @@
-import React from 'react'
-// import { ReactComponent as Logo } from "./logo.svg";
-// import "./App.css";
 import { UsersList } from './UsersList'
 
 function App() {
